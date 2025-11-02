@@ -1,3 +1,4 @@
+// src/pages/Login.tsx
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -7,37 +8,59 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Droplet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { authService } from "@/services/auth";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [userType, setUserType] = useState("");
+  const [userType, setUserType] = useState<"donor" | "doctor" | "blood-bank" | "">("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Demo login - redirect to appropriate dashboard
-    if (email && password && userType) {
+
+    if (!userType) {
       toast({
-        title: "Login successful!",
-        description: "Redirecting to your dashboard...",
+        title: "Erreur",
+        description: "Veuillez sélectionner votre rôle",
+        variant: "destructive",
       });
-      
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await authService.login({
+        email,
+        password,
+        userType: userType as any,
+      });
+
+      toast({
+        title: "Connexion réussie !",
+        description: "Redirection...",
+      });
+
       setTimeout(() => {
-        switch (userType) {
-          case "donor":
-            navigate("/donor/dashboard");
-            break;
-          case "doctor":
-            navigate("/doctor/dashboard");
-            break;
-          case "blood-bank":
-            navigate("/blood-bank/dashboard");
-            break;
+        if (userType === "donor") {
+          navigate("/donor/dashboard");
+        } else if (userType === "doctor") {
+          navigate("/doctor/dashboard");
+        } else {
+          navigate("/blood-bank/dashboard");
         }
       }, 1000);
+    } catch (error: any) {
+      toast({
+        title: "Échec de la connexion",
+        description: error.message || "Email ou mot de passe incorrect",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -56,29 +79,8 @@ const Login = () => {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="your@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="user-type">I am a</Label>
-              <Select value={userType} onValueChange={setUserType} required>
+              <Select value={userType} onValueChange={(v) => setUserType(v as any)} required disabled={loading}>
                 <SelectTrigger id="user-type">
                   <SelectValue placeholder="Select your role" />
                 </SelectTrigger>
@@ -89,18 +91,42 @@ const Login = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={loading}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
+              />
+            </div>
+
             <div className="text-right">
-              <Link 
-                to="/forgot-password" 
-                className="text-sm text-primary hover:underline"
-              >
+              <Link to="/forgot-password" className="text-sm text-primary hover:underline">
                 Forgot password?
               </Link>
             </div>
           </CardContent>
+
           <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full">
-              Sign In
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Connexion..." : "Sign In"}
             </Button>
             <p className="text-sm text-center text-muted-foreground">
               Don't have an account?{" "}

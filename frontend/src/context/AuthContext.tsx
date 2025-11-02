@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authService, User, LoginCredentials, RegisterData } from '@/services/authService';
+import { authService, User, LoginCredentials, RegisterData } from '@/services/auth';
 import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType {

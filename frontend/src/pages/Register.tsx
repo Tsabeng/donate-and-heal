@@ -1,0 +1,195 @@
+// src/pages/Register.tsx
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Droplet } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { authService } from "@/services/auth";
+import { useAuth } from "@/hooks/useAuth";
+
+const Register = () => {
+  const [formData, setFormData] = useState({
+    name: "", email: "", password: "", confirmPassword: "", phone: "",
+    userType: "" as "donor" | "doctor" | "blood-bank" | "",
+    bloodType: "", hospital: "", cni: "", licenseNumber: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { refetch } = useAuth();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // === VALIDATIONS ===
+    if (formData.password !== formData.confirmPassword) {
+      toast({ title: "Erreur", description: "Les mots de passe ne correspondent pas", variant: "destructive" });
+      return;
+    }
+    if (!formData.phone) {
+      toast({ title: "Erreur", description: "Le numéro de téléphone est requis", variant: "destructive" });
+      return;
+    }
+    if (formData.userType === "donor" && !formData.bloodType) {
+      toast({ title: "Erreur", description: "Veuillez sélectionner votre groupe sanguin", variant: "destructive" });
+      return;
+    }
+    if (formData.userType === "doctor" && (!formData.hospital || !formData.cni || !formData.licenseNumber)) {
+      toast({ title: "Erreur", description: "Tous les champs médecin sont requis", variant: "destructive" });
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await authService.register({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        phone: formData.phone,
+        userType: formData.userType as any,
+        bloodType: formData.bloodType || undefined,
+        hospital: formData.hospital || undefined,
+        cni: formData.cni || undefined,
+        licenseNumber: formData.licenseNumber || undefined,
+      });
+
+      // DEBUG : Vérifie la réponse
+      console.log("REGISTER RESPONSE:", response);
+
+      toast({ title: "Succès !", description: "Compte créé. Connexion..." });
+
+      // FORCE LE RECHARGEMENT
+      refetch();
+
+      // REDIRECTION IMMÉDIATE
+      const route =
+        formData.userType === "blood-bank" ? "/blood-bank/dashboard" :
+        formData.userType === "donor" ? "/donor/dashboard" : "/doctor/dashboard";
+
+      navigate(route, { replace: true });
+
+    } catch (error: any) {
+      console.error("REGISTER ERROR:", error);
+      toast({
+        title: "Échec de l'inscription",
+        description: error.message || "Erreur inconnue",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4 bg-muted/30">
+      <Card className="w-full max-w-md shadow-medium">
+        <CardHeader className="space-y-1 text-center">
+          <div className="flex justify-center mb-4">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <Droplet className="w-6 h-6 text-primary" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl">Create an account</CardTitle>
+          <CardDescription>Join BloodLink to start saving lives</CardDescription>
+        </CardHeader>
+
+        <form onSubmit={handleSubmit}>
+          <CardContent className="space-y-4">
+            {/* === TOUS LES CHAMPS (inchangés) === */}
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <Input id="name" placeholder="John Doe" value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })} required disabled={loading} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" type="email" placeholder="your@email.com" value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })} required disabled={loading} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone</Label>
+              <Input id="phone" placeholder="+221 77 123 4567" value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })} required disabled={loading} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="user-type">I am a</Label>
+              <Select value={formData.userType}
+                onValueChange={(v) => setFormData({ ...formData, userType: v as any, bloodType: "", hospital: "", cni: "", licenseNumber: "" })}
+                required disabled={loading}>
+                <SelectTrigger id="user-type"><SelectValue placeholder="Select your role" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="donor">Blood Donor</SelectItem>
+                  <SelectItem value="doctor">Doctor</SelectItem>
+                  <SelectItem value="blood-bank">Blood Bank</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {formData.userType === "donor" && (
+              <div className="space-y-2">
+                <Label htmlFor="blood-type">Blood Type</Label>
+                <Select value={formData.bloodType} onValueChange={(v) => setFormData({ ...formData, bloodType: v })} required disabled={loading}>
+                  <SelectTrigger id="blood-type"><SelectValue placeholder="Select blood type" /></SelectTrigger>
+                  <SelectContent>
+                    {["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {formData.userType === "doctor" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="hospital">Hospital</Label>
+                  <Input id="hospital" placeholder="Hôpital Principal de Dakar" value={formData.hospital}
+                    onChange={(e) => setFormData({ ...formData, hospital: e.target.value })} required disabled={loading} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cni">CNI Number</Label>
+                  <Input id="cni" placeholder="123456789" value={formData.cni}
+                    onChange={(e) => setFormData({ ...formData, cni: e.target.value })} required disabled={loading} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="license">License Number</Label>
+                  <Input id="license" placeholder="DOC-2025-001" value={formData.licenseNumber}
+                    onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })} required disabled={loading} />
+                </div>
+              </>
+            )}
+
+            {formData.userType === "blood-bank" && (
+              <p className="text-sm text-muted-foreground">Utilisez le nom de l’hôpital comme nom d’établissement.</p>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input id="password" type="password" value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })} required disabled={loading} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm Password</Label>
+              <Input id="confirm-password" type="password" value={formData.confirmPassword}
+                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })} required disabled={loading} />
+            </div>
+          </CardContent>
+
+          <CardFooter className="flex flex-col space-y-4">
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Création..." : "Create Account"}
+            </Button>
+            <p className="text-sm text-center text-muted-foreground">
+              Already have an account? <Link to="/login" className="text-primary hover:underline">Sign in</Link>
+            </p>
+          </CardFooter>
+        </form>
+      </Card>
+    </div>
+  );
+};
+
+export default Register;
