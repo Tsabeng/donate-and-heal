@@ -79,8 +79,11 @@ const DonorDashboard = () => {
   };
 
   useEffect(() => {
-    if (user) loadData();
-  }, [user]);
+  const interval = setInterval(() => {
+    loadRequests();
+  }, 1200000); // ici 1000 ms = 1 seconde
+  return () => clearInterval(interval);
+}, []);
 
   if (authLoading) return <div className="p-8 text-center">Chargement...</div>;
   if (!user) return <div className="p-8 text-center">Non connecté</div>;

@@ -42,7 +42,7 @@ const DoctorDashboard = () => {
       const res = await api.get<{ data: Request[] }>('/api/requests');
       console.log("Réponse brute de l'API:", res);
       console.log("res.data.data existe ?", !!res.data.data);
-      const filtered = res.data.data.filter(r => r.hospital === user.hospital);
+      const filtered = res.data.filter(r => r.hospital === user.hospital);
       console.log("Demandes filtrées:", filtered);
       setRequests(filtered);
     } catch (error: any) {

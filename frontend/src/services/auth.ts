@@ -14,6 +14,13 @@ export interface User {
   cni?: string;
   licenseNumber?: string;
   location?: any;
+  status?: string;
+  medicalHistory?: string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  lastLogin?: string;
+  __v?: number;
 }
 
 export interface BloodBank {
@@ -23,6 +30,10 @@ export interface BloodBank {
   phone?: string;
   address?: string;
   location?: any;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  __v?: number;
 }
 
 export interface LoginCredentials {
@@ -44,116 +55,155 @@ export interface RegisterData {
 }
 
 export interface AuthResponse {
-  token: string;
-  data: { user: User } | { bloodBank: BloodBank };
+  token?: string;
+  message?: string;
+  data: {
+    user?: User;
+    bloodBank?: BloodBank;
+  };
+  error?: string;
 }
 
 class AuthService {
   // === CONNEXION ===
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
-    const { userType, ...creds } = credentials;
-    const endpoint = userType === 'blood-bank' ? '/api/auth/bloodbank/login' : '/api/auth/login';
+    const { userType } = credentials;
+
+    const payload =
+      userType === 'blood-bank'
+        ? credentials
+        : { email: credentials.email, password: credentials.password };
+
+    const endpoint =
+      userType === 'blood-bank'
+        ? '/api/auth/bloodbank/login'
+        : '/api/auth/login';
 
     try {
-      const response = await api.post<AuthResponse>(endpoint, creds);
-      const { token } = response.data.data;
+      const response = await api.post<AuthResponse>(endpoint, payload);
 
+      // Déstructuration
+      const { token, data, message } = response;
+
+      if (!token) {
+        throw new Error(message || 'Token manquant');
+      }
+
+      const entity = data.user || data.bloodBank;
+      if (!entity) {
+        throw new Error('Utilisateur non trouvé dans la réponse');
+      }
+
+      // Sauvegarde
       api.setToken(token);
       localStorage.setItem('userType', userType);
+      localStorage.setItem('user', JSON.stringify(entity));
+      localStorage.setItem('token', token);
 
-      return response.data;
+      return response;
     } catch (error: any) {
-      const message = this.extractErrorMessage(error);
-      throw new Error(message);
+      throw new Error(error.message || 'Erreur de connexion');
     }
   }
 
   // === INSCRIPTION ===
   async register(data: RegisterData): Promise<AuthResponse> {
-    const { userType, bloodType, ...rest } = data;
+    const { userType } = data;
 
-    const endpoint = userType === 'blood-bank'
-      ? '/api/auth/bloodbank/register'
-      : '/api/auth/register';
+    const endpoint =
+      userType === 'blood-bank'
+        ? '/api/auth/bloodbank/register'
+        : '/api/auth/register';
 
-    const payload = userType === 'blood-bank'
-      ? { hospitalName: data.name, ...rest }
-      : {
-          ...rest,
-          role: userType,
-          bloodType: userType === 'donor' ? bloodType : undefined,
-          hospital: userType === 'doctor' ? data.hospital : undefined,
-          cni: userType === 'doctor' ? data.cni : undefined,
-          licenseNumber: userType === 'doctor' ? data.licenseNumber : undefined,
-        };
+    const payload =
+      userType === 'blood-bank'
+        ? {
+            hospitalName: data.name,
+            email: data.email,
+            password: data.password,
+            phone: data.phone,
+          }
+        : {
+            name: data.name,
+            email: data.email,
+            password: data.password,
+            phone: data.phone,
+            role: userType,
+            ...(userType === 'donor' && { bloodType: data.bloodType }),
+            ...(userType === 'doctor' && {
+              hospital: data.hospital,
+              cni: data.cni,
+              licenseNumber: data.licenseNumber,
+            }),
+          };
 
     try {
       const response = await api.post<AuthResponse>(endpoint, payload);
-      const { token } = response.data;
+      const { token, data: resData, message } = response;
+
+      if (!token) throw new Error(message || 'Échec de l\'inscription');
+
+      const entity = resData.user || resData.bloodBank;
+      if (!entity) throw new Error('Utilisateur non créé');
 
       api.setToken(token);
       localStorage.setItem('userType', userType);
+      localStorage.setItem('user', JSON.stringify(entity));
+      localStorage.setItem('token', token);
 
-      return response.data;
+      return response;
     } catch (error: any) {
-      const message = this.extractErrorMessage(error);
-      throw new Error(message);
+      throw new Error(error.message || 'Erreur d\'inscription');
     }
   }
 
-  // === PROFIL ===
-  async getCurrentUser() {
-  const token = api.getToken();
-  if (!token) return null;
+  // === PROFIL ACTUEL ===
+  async getCurrentUser(): Promise<User | BloodBank | null> {
+    const token = api.getToken();
+    const userType = localStorage.getItem('userType') as UserType | null;
 
-  const userType = localStorage.getItem('userType') as UserType | null;
-  if (!userType) return null;
+    if (!token || !userType) return null;
 
-  const endpoint = userType === 'blood-bank'
-    ? '/api/auth/bloodbank/profile'
-    : '/api/auth/profile';
+    const endpoint =
+      userType === 'blood-bank'
+        ? '/api/auth/bloodbank/profile'
+        : '/api/auth/profile';
 
-  try {
-    // Change ici : on ne sait pas si c'est { data: ... } ou direct
-    const response = await api.get<any>(endpoint);
+    try {
+      const response = await api.get<AuthResponse>(endpoint);
+      const entity = response.data.user || response.data.bloodBank;
 
-    // Normalise la réponse
-    const payload = response.data;
-
-    if (payload.user) return payload.user;
-    if (payload.bloodBank) return payload.bloodBank;
-    if (payload.data?.user) return payload.data.user;
-    if (payload.data?.bloodBank) return payload.data.bloodBank;
-
-    return null;
-  } catch (error: any) {
-    console.error("getCurrentUser error:", error);
-    this.logout();
-    return null;
+      if (entity) {
+        localStorage.setItem('user', JSON.stringify(entity));
+        return entity;
+      }
+      return null;
+    } catch (error: any) {
+      console.error('getCurrentUser error:', error);
+      this.logout();
+      return null;
+    }
   }
-}
 
   // === DÉCONNEXION ===
-  async logout() {
+  logout() {
     api.setToken(null);
     localStorage.removeItem('userType');
-  }
-
-  // === UTILITAIRE : Extraire le vrai message backend ===
-  private extractErrorMessage(error: any): string {
-    // 1. Message direct
-    if (error.response?.data?.message) {
-      return error.response.data.message;
-    }
-
-    // 2. Erreurs de validation (express-validator)
-    if (error.response?.data?.errors?.[0]?.msg) {
-      return error.response.data.errors[0].msg;
-    }
-
-    // 3. Message générique
-    return error.message || "Erreur inconnue";
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
   }
 }
 
 export const authService = new AuthService();
+
+// DEBUG: expose to console
+declare global {
+  interface Window {
+    authService: typeof authService;
+    api: typeof api;
+  }
+}
+if (typeof window !== 'undefined') {
+  window.authService = authService;
+  window.api = api;
+}
