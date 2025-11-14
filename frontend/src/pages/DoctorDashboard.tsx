@@ -58,13 +58,20 @@ const DoctorDashboard = () => {
   };
 
   // LOG 2 : Vérifie si useEffect se déclenche
-  useEffect(() => {
-    console.log("useEffect déclenché", { loading, user });
-    if (!loading && user) {
-      console.log("Appel loadRequests");
-      loadRequests();
-    }
-  }, [loading, user]);
+  // useEffect(() => {
+  //   console.log("useEffect déclenché", { loading, user });
+  //   if (!loading && user) {
+  //     console.log("Appel loadRequests");
+  //     loadRequests();
+  //   }
+  // }, [loading, user]);
+
+useEffect(() => {
+  const interval = setInterval(() => {
+    loadRequests();
+  }, 1200000); // ici 1000 ms = 1 seconde
+  return () => clearInterval(interval);
+}, [loading, user]);
 
   if (loading) {
     return <div className="p-8 text-center">Chargement...</div>;
