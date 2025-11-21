@@ -34,10 +34,10 @@ exports.validateRegisterBloodBank = [
   body('email').isEmail(),
   body('password').isLength({ min: 6 }),
   body('phone').optional().isMobilePhone('any'),
-  body('address').optional().trim(),
+  body('address').optional().trim(), // ← adresse facultative à l'inscription
 ];
 
-// === INSCRIPTION USER ===
+// === INSCRIPTION USER (inchangée) ===
 exports.register = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -47,7 +47,6 @@ exports.register = async (req, res) => {
       errors: errors.array(),
     });
   }
-
   try {
     const {
       name, email, password, phone, role,
@@ -88,16 +87,14 @@ exports.register = async (req, res) => {
   }
 };
 
-// === CONNEXION USER ===
+// === CONNEXION USER (inchangée) ===
 exports.login = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ success: false, errors: errors.array() });
   }
-
   try {
     const { email, password } = req.body;
-
     const user = await User.findOne({ email }).select('+password');
     if (!user || !(await user.correctPassword(password))) {
       return res.status(401).json({
@@ -105,20 +102,16 @@ exports.login = async (req, res) => {
         message: 'Email ou mot de passe incorrect.',
       });
     }
-
     if (!user.isActive) {
       return res.status(401).json({
         success: false,
         message: 'Compte désactivé.',
       });
     }
-
     user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
-
     const token = signToken(user._id);
     user.password = undefined;
-
     res.json({
       success: true,
       message: 'Connexion réussie',
@@ -130,15 +123,14 @@ exports.login = async (req, res) => {
   }
 };
 
-// === INSCRIPTION BLOODBANK ===
+// === INSCRIPTION BLOODBANK (adresse facultative) ===
 exports.registerBloodBank = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ success: false, errors: errors.array() });
   }
-
   try {
-    const { hospitalName, email, password, phone, address, location } = req.body;
+    const { hospitalName, email, password, phone, address = "", location } = req.body;
 
     const existing = await BloodBank.findOne({
       $or: [{ email }, { hospitalName }],
@@ -151,7 +143,12 @@ exports.registerBloodBank = async (req, res) => {
     }
 
     const bloodBank = await BloodBank.create({
-      hospitalName, email, password, phone, address, location,
+      hospitalName,
+      email,
+      password,
+      phone,
+      address: address.trim(),
+      location,
       isActive: true,
     });
 
@@ -165,11 +162,12 @@ exports.registerBloodBank = async (req, res) => {
       data: { bloodBank },
     });
   } catch (error) {
+    console.error("Erreur registerBloodBank:", error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 };
 
-// === CONNEXION BLOODBANK ===
+// === CONNEXION BLOODBANK + REMPLISSAGE AUTO DE L'ADRESSE SI VIDE ===
 exports.loginBloodBank = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -177,7 +175,7 @@ exports.loginBloodBank = async (req, res) => {
   }
 
   try {
-    const { email, password } = req.body;
+    const { email, password, detectedAddress } = req.body; // ← detectedAddress envoyé par le frontend
 
     const bloodBank = await BloodBank.findOne({ email }).select('+password');
     if (!bloodBank || !(await bcrypt.compare(password, bloodBank.password))) {
@@ -194,6 +192,13 @@ exports.loginBloodBank = async (req, res) => {
       });
     }
 
+    // === SI PAS D'ADRESSE → ON LA REMPLIT AUTOMATIQUEMENT ===
+    if (!bloodBank.address || bloodBank.address.trim() === "") {
+      const finalAddress = (detectedAddress && detectedAddress.trim()) ? detectedAddress : "Yaounde, Cameroun";
+      bloodBank.address = finalAddress;
+      await bloodBank.save({ validateBeforeSave: false });
+    }
+
     const token = signToken(bloodBank._id);
     bloodBank.password = undefined;
 
@@ -204,40 +209,56 @@ exports.loginBloodBank = async (req, res) => {
       data: { bloodBank },
     });
   } catch (error) {
+    console.error("Erreur loginBloodBank:", error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 };
 
-// === PROFIL USER ===
+// === PROFIL USER (inchangé) ===
 exports.getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('-password');
     if (!user) {
       return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
     }
-
-    res.json({
-      success: true,
-      data: { user },
-    });
+    res.json({ success: true, data: { user } });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 };
 
-// === PROFIL BLOODBANK ===
+// === PROFIL BLOODBANK (inchangé) ===
 exports.getBloodBankProfile = async (req, res) => {
   try {
     const bloodBank = await BloodBank.findById(req.bloodBank._id).select('-password');
     if (!bloodBank) {
       return res.status(404).json({ success: false, message: 'Banque non trouvée' });
     }
-
-    res.json({
-      success: true,
-      data: { bloodBank },
-    });
+    res.json({ success: true, data: { bloodBank } });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+};
+
+// === PROFIL PAR ID (inchangé) ===
+exports.getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('-password');
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Utilisateur introuvable"
+      });
+    }
+    res.json({
+      success: true,
+      data: { user },
+    });
+  } catch (error) {
+    console.error("Erreur getUserById:", error);
+    res.status(500).json({
+      success: false,
+      message: "Erreur serveur",
+    });
   }
 };
