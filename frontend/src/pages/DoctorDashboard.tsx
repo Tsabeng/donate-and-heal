@@ -1,4 +1,3 @@
-// src/pages/doctor/Dashboard.tsx
 import { useEffect, useState } from "react";
 import {
   Card,

@@ -39,18 +39,17 @@ import {
   Plus,
   ArrowDownToLine,
   CheckCircle,
-  User,
   X,
   Calendar,
-  Phone,
   MapPin,
+  Phone,
 } from "lucide-react";
-import axios from "axios";
+
 import { api } from "@/services/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
-const bloodTypes = ["A+", "A-", "B+", "B+", "B-", "O+", "O-", "AB+", "AB-"];
+const bloodTypes = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
 
 interface Inventory {
   [key: string]: number;
@@ -68,7 +67,8 @@ interface Request {
 }
 
 const BloodBankDashboard = () => {
-  const { user, loading: authLoading } = useAuth();
+  // CORRIGÉ : on remet authLoading qui est bien renvoyé par ton hook useAuth
+  const { user, authLoading } = useAuth();
   const { toast } = useToast();
 
   const [inventory, setInventory] = useState<Inventory>({});
@@ -81,20 +81,20 @@ const BloodBankDashboard = () => {
 
   const loadData = async () => {
     if (!user?._id) return;
-
     setLoading(true);
     try {
       const [invRes, reqRes] = await Promise.all([
         api.get("/api/bloodbanks/inventory"),
-        api.get(`/api/requests?hospital=${user._id}&status=pending`),
+        api.get("/api/requests/all-pending"),
       ]);
 
       setInventory(invRes.data?.data?.inventory || invRes.data?.inventory || {});
-      setRequests(reqRes.data?.data || []);
+      setRequests(reqRes.data?.data || reqRes.data || []);
     } catch (error: any) {
+      console.error("Erreur loadData:", error);
       toast({
         title: "Erreur de chargement",
-        description: "Certaines données n'ont pas pu être chargées",
+        description: "Impossible de charger les données",
         variant: "destructive",
       });
     } finally {
@@ -107,40 +107,25 @@ const BloodBankDashboard = () => {
   }, [authLoading, user]);
 
   useEffect(() => {
-    const interval = setInterval(loadData, 60000);
+    const interval = setInterval(loadData, 10000);
     return () => clearInterval(interval);
   }, [user]);
 
-  // FONCTION QUI MARCHE À 100 % (avec axios.patch)
   const handleAddDonation = async () => {
     if (!donForm.bloodType || !donForm.units || Number(donForm.units) <= 0) {
       toast({ title: "Erreur", description: "Veuillez remplir tous les champs", variant: "destructive" });
       return;
     }
-
     try {
-      const token = localStorage.getItem("token") || "";
-
-      await axios.patch(
-        "http://localhost:5000/api/bloodbanks/inventory",
-        {
-          bloodType: donForm.bloodType,
-          quantity: Number(donForm.units),
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      toast({ title: "Succès !", description: `+${donForm.units} unité(s) ${donForm.bloodType} ajoutée(s)` });
+      await api.patch("/api/bloodbanks/inventory", {
+        bloodType: donForm.bloodType,
+        quantity: Number(donForm.units),
+      });
+      toast({ title: "Succès !", description: `+${donForm.units} unité(s) ${donForm.bloodType}` });
       setDonOpen(false);
       setDonForm({ bloodType: "", units: "" });
       loadData();
     } catch (error: any) {
-      console.error("Erreur ajout don:", error.response?.data || error);
       toast({
         title: "Échec",
         description: error.response?.data?.message || "Erreur lors de l'ajout",
@@ -154,29 +139,17 @@ const BloodBankDashboard = () => {
     if (available < request.units) {
       toast({
         title: "Stock insuffisant",
-        description: `Seulement ${available} ${request.bloodType} disponibles`,
+        description: `Seulement ${available} disponibles`,
         variant: "destructive",
       });
       return;
     }
 
     try {
-      const token = localStorage.getItem("token") || "";
-
-      await axios.patch(
-        "http://localhost:5000/api/bloodbanks/inventory",
-        {
-          bloodType: request.bloodType,
-          quantity: -request.units,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
+      await api.patch(`/api/requests/${request._id}/fulfill`);
       toast({ title: "Distribution validée", description: `${request.units} ${request.bloodType} livrées` });
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       toast({ title: "Erreur", description: "Distribution échouée", variant: "destructive" });
     }
   };
@@ -310,7 +283,6 @@ const BloodBankDashboard = () => {
                   const units = inventory[type] || 0;
                   const status = units === 0 ? "Épuisé" : units <= 5 ? "Critique" : units <= 15 ? "Faible" : "Normal";
                   const variant = units === 0 ? "destructive" : units <= 5 ? "destructive" : units <= 15 ? "secondary" : "outline";
-
                   return (
                     <div key={type} className="text-center space-y-3 p-6 bg-muted/30 rounded-xl">
                       <p className="text-3xl font-bold">{type}</p>
@@ -354,9 +326,7 @@ const BloodBankDashboard = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {bloodTypes.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -373,9 +343,7 @@ const BloodBankDashboard = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDonOpen(false)}>
-              Annuler
-            </Button>
+            <Button variant="outline" onClick={() => setDonOpen(false)}>Annuler</Button>
             <Button onClick={handleAddDonation}>Ajouter au stock</Button>
           </DialogFooter>
         </DialogContent>
@@ -390,7 +358,7 @@ const BloodBankDashboard = () => {
           <div className="space-y-4 py-4">
             {requests.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
-                <AlertTriangle class2Name="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <AlertTriangle className="w-16 h-16 mx-auto mb-4 opacity-50" />
                 <p className="text-lg">Aucune demande pour le moment</p>
               </div>
             ) : (

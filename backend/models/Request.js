@@ -1,4 +1,3 @@
-// models/Request.js
 const mongoose = require('mongoose');
 
 const requestSchema = new mongoose.Schema({
@@ -34,6 +33,11 @@ const requestSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  requestedBy: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'User'
+},
 });
+
 
 module.exports = mongoose.model('Request', requestSchema);

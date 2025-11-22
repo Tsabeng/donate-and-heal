@@ -29,6 +29,7 @@ import {
   Phone,
   Mail,
 } from "lucide-react";
+
 import { api } from "@/services/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -44,22 +45,19 @@ const DonorDashboard = () => {
 
   const loadData = async () => {
     if (!user) return;
-
     setLoading(true);
     try {
-      // On essaie de charger les données, mais on ne plante JAMAIS
       const [donRes, alertRes] = await Promise.all([
         api.get("/api/donations/my").catch(() => ({ data: { data: [] } })),
-        api.get("/api/alerts").catch(() => ({ data: { data: [] } })),
+        api.get("/api/alerts/my").catch(() => ({ data: { data: [] } })),
       ]);
 
       setDonations(donRes.data?.data || []);
       setAlerts(alertRes.data?.data || []);
     } catch (error) {
-      // Message doux au lieu d'erreur brutale
       toast({
-        title: "Fonctionnalités en cours",
-        description: "L'historique des dons et les alertes seront bientôt disponibles",
+        title: "Chargement partiel",
+        description: "Certaines données sont en cours de développement",
         variant: "default",
       });
     } finally {
@@ -71,13 +69,12 @@ const DonorDashboard = () => {
     if (!authLoading && user) loadData();
   }, [authLoading, user]);
 
-  // Rafraîchissement toutes les 10 minutes
   useEffect(() => {
-    const interval = setInterval(loadData, 600000);
+    const interval = setInterval(loadData, 10000); // rafraîchit toutes les 10 secondes
     return () => clearInterval(interval);
   }, [user]);
 
-  const compatibleAlerts = alerts.filter((a: any) => a.bloodType === user?.bloodType);
+  const compatibleAlerts = alerts.filter((a: any) => a.bloodType === user?.bloodType && a.status === 'pending');
 
   if (authLoading) {
     return (
@@ -94,6 +91,15 @@ const DonorDashboard = () => {
 
   return (
     <div className="min-h-screen bg-muted/30">
+      {/* Badge alerte fixe en haut à droite */}
+      {compatibleAlerts.length > 0 && (
+        <div className="fixed top-20 right-4 z-50 animate-pulse">
+          <Badge variant="destructive" className="text-xl px-6 py-3 shadow-lg">
+            {compatibleAlerts.length} alerte(s) urgente(s) !
+          </Badge>
+        </div>
+      )}
+
       {/* Header + Profil */}
       <header className="bg-card border-b shadow-soft">
         <div className="container mx-auto px-4 py-6">
@@ -208,27 +214,26 @@ const DonorDashboard = () => {
                     className={`p-8 rounded-2xl border-4 ${
                       alert.urgency === "critical"
                         ? "border-red-600 bg-red-50"
-                        : alert.urgency === "urgent"
+                        : alert.urgency === "high"
                         ? "border-orange-600 bg-orange-50"
                         : "border-yellow-600 bg-yellow-50"
                     }`}
                   >
                     <div className="flex justify-between items-center">
                       <div className="space-y-3">
-                        <h3 className="text-2xl font-bold">{alert.hospitalName}</h3>
+                        <h3 className="text-2xl font-bold">{alert.bloodBank?.hospitalName || "Hôpital"}</h3>
                         <p className="text-xl">
-                          Besoin de <strong className="text-primary">{alert.units} unité(s) {alert.bloodType}</strong>
+                          Besoin de <strong className="text-primary">{alert.quantity} unité(s) {alert.bloodType}</strong>
                         </p>
                         <div className="flex items-center gap-3">
                           <MapPin className="w-5 h-5" />
-                          <span className="text-lg">{alert.address}</span>
+                          <span className="text-lg">{alert.bloodBank?.address || "Adresse inconnue"}</span>
                         </div>
                       </div>
-
                       <Button
                         size="lg"
                         className="h-20 text-xl font-semibold"
-                        onClick={() => toast({ title: "Fonctionnalité à venir", description: "L'acceptation des dons sera bientôt disponible" })}
+                        onClick={() => toast({ title: "Bientôt disponible", description: "Réponse aux alertes en cours de développement" })}
                       >
                         <Heart className="w-6 h-6 mr-3" />
                         Je peux donner !

@@ -39,6 +39,8 @@ app.use('/api/donors', require('./routes/donors'));
 app.use('/api/bloodbanks', require('./routes/bloodBanks'));
 app.use('/api/notifications', require('./routes/notification'));
 app.use('/api/requests', require('./routes/requests'));
+app.use('/api/donations', require('./routes/donations'));
+
 
 
 // Routes de santé et test
