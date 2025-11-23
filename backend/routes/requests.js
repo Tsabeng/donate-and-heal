@@ -22,6 +22,7 @@ router.get('/', protectUser, async (req, res) => {
 router.post('/', protectUser, async (req, res) => {
   try {
     const { patientId, bloodType, units, urgency } = req.body;
+
     const newRequest = new Request({
       patientId: patientId || `PAT-${Date.now()}`,
       bloodType,
@@ -29,8 +30,11 @@ router.post('/', protectUser, async (req, res) => {
       urgency: urgency || 'normal',
       status: 'pending',
       hospital: req.user.hospital,
+      requestedBy: req.user._id, // ← IMPORTANT : on sauvegarde qui a demandé
     });
+
     await newRequest.save();
+
     res.status(201).json({ data: newRequest });
   } catch (err) {
     console.error("Erreur POST /api/requests:", err);
@@ -56,6 +60,19 @@ router.get('/bloodbank/pending', protectBloodBank, async (req, res) => {
   } catch (err) {
     console.error("Erreur GET /bloodbank/pending:", err);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+
+
+});
+router.get('/all-pending', protectBloodBank, async (req, res) => {
+  try {
+    const requests = await Request.find({ status: 'pending' })
+      .populate('requestedBy', 'name')
+      .sort({ urgency: -1, createdAt: -1 });
+
+    res.json({ data: requests });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur' });
   }
 });
 

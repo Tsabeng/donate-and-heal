@@ -80,28 +80,36 @@ const BloodBankDashboard = () => {
   const [donForm, setDonForm] = useState({ bloodType: "", units: "" });
 
   const loadData = async () => {
-    if (!user?._id) return;
+  if (!user?._id) return;
+  setLoading(true);
+  try {
+    const [invRes, reqRes] = await Promise.all([
+      api.get("/api/bloodbanks/inventory"),
+      api.get("/api/requests/all-pending"),
+    ]);
 
-    setLoading(true);
-    try {
-      const [invRes, reqRes] = await Promise.all([
-        api.get("/api/bloodbanks/inventory"),
-        api.get(`/api/requests?hospital=${user._id}&status=pending`),
-      ]);
+    console.log("%c[BloodBank] Inventory reçu :", "color: green", invRes.data);
+    console.log("%c[BloodBank] Demandes reçues :", "color: blue", reqRes.data);
 
-      setInventory(invRes.data?.data?.inventory || invRes.data?.inventory || {});
-      setRequests(reqRes.data?.data || []);
-    } catch (error: any) {
-      toast({
-        title: "Erreur de chargement",
-        description: "Certaines données n'ont pas pu être chargées",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+    setInventory(
+      invRes.data?.data?.inventory ||
+      invRes.data?.inventory ||
+      {}
+    );
 
+    setRequests(reqRes.data?.data || reqRes.data || []);
+
+  } catch (error: any) {
+    console.error("Erreur loadData banque :", error.response || error);
+    toast({
+      title: "Erreur",
+      description: error.message || "Impossible de charger les données",
+      variant: "destructive",
+    });
+  } finally {
+    setLoading(false);
+  }
+};
   useEffect(() => {
     if (!authLoading && user) loadData();
   }, [authLoading, user]);
@@ -390,7 +398,7 @@ const BloodBankDashboard = () => {
           <div className="space-y-4 py-4">
             {requests.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
-                <AlertTriangle class2Name="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <AlertTriangle className="w-16 h-16 mx-auto mb-4 opacity-50" />
                 <p className="text-lg">Aucune demande pour le moment</p>
               </div>
             ) : (
