@@ -42,30 +42,25 @@ const DonorDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
 
-  const loadData = async () => {
-    if (!user) return;
+const loadData = async () => {
+  if (!user) return;
 
+  try {
     setLoading(true);
-    try {
-      // On essaie de charger les données, mais on ne plante JAMAIS
-      const [donRes, alertRes] = await Promise.all([
-        api.get("/api/donations/my").catch(() => ({ data: { data: [] } })),
-        api.get("/api/alerts").catch(() => ({ data: { data: [] } })),
-      ]);
 
-      setDonations(donRes.data?.data || []);
-      setAlerts(alertRes.data?.data || []);
-    } catch (error) {
-      // Message doux au lieu d'erreur brutale
-      toast({
-        title: "Fonctionnalités en cours",
-        description: "L'historique des dons et les alertes seront bientôt disponibles",
-        variant: "default",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+    // On ne charge PLUS /api/donations/my → ça n'existe pas encore
+    // On garde seulement les alertes (qui marchent maintenant)
+    const alertRes = await api.get("/api/alerts/my").catch(() => ({ data: { data: [] } }));
+
+    setAlerts(alertRes.data?.data || []);
+    // On laisse donations vide pour l’instant (pas de 404)
+    setDonations([]);
+  } catch (error) {
+    // Rien, on reste silencieux
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     if (!authLoading && user) loadData();
