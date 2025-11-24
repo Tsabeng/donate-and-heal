@@ -1,5 +1,4 @@
-// src/pages/Register.tsx
-// Version 2026 — Identique au Login (même style, même couleurs, même vibe)
+
 
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -34,50 +33,54 @@ const Register = () => {
   const { refetch } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (formData.password !== formData.confirmPassword) {
-      return toast({ title: "Erreur", description: "Les mots de passe ne correspondent pas", variant: "destructive" });
+  e.preventDefault();
+  if (formData.password !== formData.confirmPassword) {
+    return toast({ title: "Erreur", description: "Les mots de passe ne correspondent pas", variant: "destructive" });
+  }
+
+  setLoading(true);
+  try {
+    if (formData.userType === "blood-bank") {
+      await api.post("/auth/bloodbank/register", {
+        hospitalName: formData.hospitalName,
+        email: formData.email,
+        password: formData.password,
+        phone: formData.phone,
+        address: formData.address,
+      });
+      toast({ title: "Succès", description: "Banque de sang créée !" });
+    } else {
+      await authService.register({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        phone: formData.phone,
+        userType: formData.userType as any,
+        bloodType: formData.bloodType || undefined,
+        hospital: formData.hospital || undefined,
+        cni: formData.cni || undefined,
+        licenseNumber: formData.licenseNumber || undefined,
+      });
+      toast({ title: "Succès", description: "Compte créé avec succès !" });
     }
-    setLoading(true);
-    try {
-      if (formData.userType === "blood-bank") {
-        const res = await fetch("http://localhost:5000/api/auth/bloodbank/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            hospitalName: formData.hospitalName,
-            email: formData.email,
-            password: formData.password,
-            phone: formData.phone,
-            address: formData.address,
-          }),
-        });
-        if (!res.ok) throw new Error("Échec création banque");
-        toast({ title: "Succès", description: "Banque de sang créée !" });
-      } else {
-        await authService.register({
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-          phone: formData.phone,
-          userType: formData.userType as any,
-          bloodType: formData.bloodType || undefined,
-          hospital: formData.hospital || undefined,
-          cni: formData.cni || undefined,
-          licenseNumber: formData.licenseNumber || undefined,
-        });
-        toast({ title: "Succès", description: "Compte créé avec succès !" });
-      }
-      refetch();
-      const route = formData.userType === "blood-bank" ? "/blood-bank/dashboard" :
-                    formData.userType === "donor" ? "/donor/dashboard" : "/doctor/dashboard";
-      navigate(route, { replace: true });
-    } catch (error: any) {
-      toast({ title: "Erreur", description: error.message || "Inscription échouée", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
+
+    refetch();
+    const route = formData.userType === "blood-bank" 
+      ? "/blood-bank/dashboard" 
+      : formData.userType === "donor" 
+      ? "/donor/dashboard" 
+      : "/doctor/dashboard";
+    navigate(route, { replace: true });
+  } catch (error: any) {
+    toast({ 
+      title: "Erreur", 
+      description: error.message || "Inscription échouée", 
+      variant: "destructive" 
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   const icons = {
     donor: <Heart className="w-12 h-12" />,
