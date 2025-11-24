@@ -5,10 +5,11 @@ require('dotenv').config();
 
 const app = express();
 
-// Middleware CORS complet
 app.use(cors({
-  origin: '*', // Autoriser toutes les origins en développement
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+origin: [
+    "https://bloodlink-vuwf.onrender.com",
+    "http://localhost:3000"
+  ],  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
   credentials: false,
   preflightContinue: false,
@@ -135,7 +136,7 @@ mongoose.connect(MONGO_URI, {
       console.log('\n🚀 ===== SERVEUR BLOODLINK DÉMARRÉ =====');
       console.log(`📍 Port: ${PORT}`);
       console.log(`🌐 Environnement: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🏠 Local: http://localhost:${PORT}`);
+     // console.log(`🏠 Local: http://localhost:${PORT}`);
       console.log(`📱 Réseau: http://192.168.4.48:${PORT}`);
       console.log(`🐳 Docker: http://172.17.0.1:${PORT}`);
       console.log('====================================\n');
@@ -199,5 +200,7 @@ mongoose.connection.on('disconnected', () => {
 mongoose.connection.on('reconnected', () => {
   console.log('🔁 Reconnexion à MongoDB réussie');
 });
+
+
 
 module.exports = app;
